@@ -18,19 +18,24 @@ namespace Instancing {
 		private ComputeBuffer _indexBuf;
 		private ComputeBuffer _vertexBuf;
 		private ComputeBuffer _uvBuf;
-		private ComputeBuffer _worldBuf;
-		private float[] _worlds;
-		private Transform[] _trs;
+		private ComputeBuffer _posBuf;
+		private ComputeBuffer _speeddBuf;
+		private float[] _poss;
+		private float[] _speeds;
 		private Material _mat;
+
+		public ComputeShader computeShader;
+		private int mComputeShaderKernelID;
 
 		void OnDestroy() {
 			_indexBuf.Release();
 			_vertexBuf.Release();
 			_uvBuf.Release();
-			_worldBuf.Release();
+			_posBuf.Release ();
+			_speeddBuf.Release ();
 		}
 
-		void Awake() {
+		void Start() {
 			var mf = prefab.GetComponent<MeshFilter>();
 			var mesh = mf.sharedMesh;
 
@@ -43,27 +48,44 @@ namespace Instancing {
 			_uvBuf = new ComputeBuffer(mesh.uv.Length, Marshal.SizeOf(mesh.uv[0]));
 			_uvBuf.SetData(mesh.uv);
 
-			var gofab = new GameObject("Position");
-			gofab.hideFlags = HideFlags.HideAndDontSave;
-			_trs = GenerateRandom(gofab, count);
-			_worlds = new float[16 * _trs.Length];
-			_worldBuf = new ComputeBuffer(_trs.Length, 16 * Marshal.SizeOf(_worlds[0]));
-			UpdateWorlds();
+			_poss = new float[3 * count];
+			_speeds = new float[3 * count];
+			for (int i = 0; i < count; i++) {
+				_poss [3 * i + 0] = Random.Range (-range, range);
+				_poss [3 * i + 1] = Random.Range (0.0f, 2*range);
+				_poss [3 * i + 2] = Random.Range (-range, range);
+				_speeds [3 * i + 0] = 0.0f;
+				_speeds [3 * i + 1] = 0.0f;
+				_speeds [3 * i + 2] = 0.0f;
+			}
+			_posBuf = new ComputeBuffer(count, 3 * Marshal.SizeOf(_poss[0]));
+			_posBuf.SetData(_poss);
+			_speeddBuf = new ComputeBuffer(count, 3 * Marshal.SizeOf(_speeds[0]));
+			_speeddBuf.SetData(_speeds);
 
-			_mat = new Material(prefab.renderer.sharedMaterial);
+			mComputeShaderKernelID = computeShader.FindKernel("CSMain");
+			computeShader.SetBuffer(mComputeShaderKernelID, "posBuf", _posBuf);
+			computeShader.SetBuffer(mComputeShaderKernelID, "speedBuf", _speeddBuf);
+
+			_mat = new Material(prefab.GetComponent<Renderer>().sharedMaterial);
 			_mat.SetBuffer(CS_INDEX_BUFFER, _indexBuf);
 			_mat.SetBuffer(CS_VERTEX_BUFFER, _vertexBuf);
 			_mat.SetBuffer(CS_UV_BUFFER, _uvBuf);
-			_mat.SetBuffer(CS_WORLD_BUFFER, _worldBuf);
+			_mat.SetBuffer("posBuf", _posBuf);
+			_mat.SetBuffer("speedBuf", _speeddBuf);
+		}
+		void FixedUpdate()
+		{
+			computeShader.SetFloat("deltaTime", Time.fixedDeltaTime/100.0f);
+			computeShader.Dispatch(mComputeShaderKernelID, count, 1, 1);
 		}
 
 		void OnRenderObject() {
-			UpdateRotations();
-			UpdateWorlds();
 			_mat.SetPass(0);
-			Graphics.DrawProcedural(MeshTopology.Triangles, _indexBuf.count, _trs.Length);
+			Graphics.DrawProcedural(MeshTopology.Triangles, _indexBuf.count, count);
 		}
 
+		/*
 		void UpdateWorlds() {
 			// HLSL : colum major matrix
 			var c = 0;
@@ -99,8 +121,9 @@ namespace Instancing {
 		Transform[] GenerateRandom(GameObject prefab, int count) {
 			var trs = new Transform[count];
 			for (var i = 0; i < count; i++) {
-				var pos = new Vector3(Random.Range(-range, range), Random.Range(-range, range), 0f);
-				trs[i] = Generate(prefab, pos, Random.rotationUniform, Random.Range(0.7f, 2f) * prefab.transform.localScale);
+				var pos = new Vector3(Random.Range(-range, range), Random.Range(0.0f, 2.0f*range), Random.Range(-range, range));
+				trs [i] = Generate (prefab, pos, Random.rotationUniform, 0.02f*Vector3.one);//prefab.transform.localScale);
+				//trs[i] = Generate(prefab, Vector3.zero, Quaternion.identity, Vector3.one);
 			}
 			return trs;
 		}
@@ -112,6 +135,6 @@ namespace Instancing {
 			go.transform.localRotation = localRotation;
 			go.transform.localScale = localScale;
 			return go.transform;
-		}
+		}*/
 	}
 }

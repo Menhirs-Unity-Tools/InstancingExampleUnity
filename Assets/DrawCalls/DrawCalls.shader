@@ -1,4 +1,6 @@
-﻿Shader "Custom/HanaDrawCalls" {
+﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+
+Shader "Custom/HanaDrawCalls" {
 	Properties {
 		_MainTex ("Base (RGB)", 2D) = "white" {}
 	}
@@ -27,7 +29,7 @@
 			
 			vs2ps vert(appdata IN) {
 				vs2ps o;
-				o.vertex = mul(UNITY_MATRIX_MVP, IN.vertex);
+				o.vertex = UnityObjectToClipPos(IN.vertex);
 				o.uv = IN.uv;
 				return o;
 			}
